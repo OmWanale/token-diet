@@ -64,7 +64,7 @@ export function computeMetrics(level: number): Metrics {
   const compressed = Math.round((ORIGINAL_TOKENS * (100 - level)) / 100);
   const saved = ORIGINAL_TOKENS - compressed;
   // demo model: latency scales with tokens sent, plus fixed compression overhead
-  const ttft = Math.round(900 + (compressed / ORIGINAL_TOKENS) * 3900 + level * 3);
+  const ttft = Math.round(900 + (compressed / ORIGINAL_TOKENS) * 4000);
   // quality holds up to ~70% then degrades sharply (demo curve)
   const quality =
     level <= 70
