@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CONTEXT_SENTENCES, type Sentence } from "@/lib/token-diet";
+import type { Result, ScoredSentence } from "@/lib/token-diet";
 import { cn } from "@/lib/utils";
 
 type Mode = "original" | "compressed" | "diff";
@@ -10,16 +10,14 @@ const modes: { id: Mode; label: string }[] = [
   { id: "diff", label: "Diff" },
 ];
 
-function Row({ s, mode }: { s: Sentence; mode: Mode }) {
-  const kept = s.kind === "relevant";
+function Row({ s, mode }: { s: ScoredSentence; mode: Mode }) {
+  const kept = s.kept;
   const dropped = !kept && mode === "diff";
   return (
     <div
       className={cn(
         "flex gap-3 rounded-lg border p-3 text-sm transition-all duration-300",
-        kept
-          ? "border-primary/35 bg-primary/8"
-          : "border-destructive/35 bg-destructive/8",
+        kept ? "border-primary/35 bg-primary/8" : "border-destructive/35 bg-destructive/8",
         dropped && "line-through opacity-55",
       )}
     >
@@ -32,7 +30,7 @@ function Row({ s, mode }: { s: Sentence; mode: Mode }) {
       <div className="min-w-0 flex-1">
         <p className="leading-relaxed text-foreground/90">{s.text}</p>
         <div className="mt-1.5 flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          <span>{kept ? "relevant" : s.kind}</span>
+          <span>{s.kind}</span>
           <span className="text-border">•</span>
           <span>score {s.score.toFixed(2)}</span>
           {mode === "diff" && (
@@ -46,12 +44,12 @@ function Row({ s, mode }: { s: Sentence; mode: Mode }) {
   );
 }
 
-export function ContextVisualizer() {
+export function ContextVisualizer({ result }: { result: Result }) {
   const [mode, setMode] = useState<Mode>("original");
   const shown =
-    mode === "compressed"
-      ? CONTEXT_SENTENCES.filter((s) => s.kind === "relevant")
-      : CONTEXT_SENTENCES;
+    mode === "compressed" ? result.sentences.filter((s) => s.kept) : result.sentences;
+
+  const count = (kind: string) => result.sentences.filter((s) => s.kind === kind).length;
 
   return (
     <section className="glass-card rounded-2xl p-6">
@@ -59,8 +57,8 @@ export function ContextVisualizer() {
         <div>
           <h2 className="font-display text-xl font-semibold">Context Visualizer</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Token-Diet selects relevant sentences — it does not truncate at a fixed character
-            position.
+            Sentences ranked against your query — Token-Diet keeps the highest scoring spans, it
+            does not truncate at a fixed position.
           </p>
         </div>
         <div className="flex rounded-xl border border-border bg-secondary/50 p-1">
@@ -89,8 +87,8 @@ export function ContextVisualizer() {
 
       <p className="mt-4 font-mono text-xs text-muted-foreground">
         {mode === "compressed"
-          ? `3 of 6 sentences retained • redundant + irrelevant spans removed`
-          : `6 sentences retrieved • 3 relevant • 2 redundant • 1 irrelevant`}
+          ? `${result.keptCount} of ${result.sentences.length} sentences retained • lowest-scoring spans removed`
+          : `${result.sentences.length} sentences retrieved • ${count("relevant")} relevant • ${count("redundant")} redundant • ${count("irrelevant")} irrelevant`}
       </p>
     </section>
   );

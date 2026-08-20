@@ -1,5 +1,5 @@
 import { Slider } from "@/components/ui/slider";
-import { computeMetrics, format, ORIGINAL_TOKENS } from "@/lib/token-diet";
+import { format, ORIGINAL_TOKENS, type Result } from "@/lib/token-diet";
 import { cn } from "@/lib/utils";
 import {
   Bar,
@@ -43,11 +43,13 @@ function Stat({
 export function CompressionLab({
   level,
   onLevel,
+  result,
 }: {
   level: number;
   onLevel: (v: number) => void;
+  result: Result;
 }) {
-  const m = computeMetrics(level);
+  const m = result;
   const qualityAccent = m.quality >= 90 ? "primary" : m.quality >= 75 ? "warn" : "bad";
 
   const tokenData = [
