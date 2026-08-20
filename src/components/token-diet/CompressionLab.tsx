@@ -43,11 +43,13 @@ function Stat({
 export function CompressionLab({
   level,
   onLevel,
+  result,
 }: {
   level: number;
   onLevel: (v: number) => void;
+  result: Result;
 }) {
-  const m = computeMetrics(level);
+  const m = result;
   const qualityAccent = m.quality >= 90 ? "primary" : m.quality >= 75 ? "warn" : "bad";
 
   const tokenData = [
