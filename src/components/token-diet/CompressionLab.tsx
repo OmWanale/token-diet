@@ -1,5 +1,5 @@
 import { Slider } from "@/components/ui/slider";
-import { computeMetrics, format, ORIGINAL_TOKENS } from "@/lib/token-diet";
+import { format, ORIGINAL_TOKENS, type Result } from "@/lib/token-diet";
 import { cn } from "@/lib/utils";
 import {
   Bar,
