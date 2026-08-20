@@ -49,13 +49,7 @@ export function ContextVisualizer({ result }: { result: Result }) {
   const shown =
     mode === "compressed" ? result.sentences.filter((s) => s.kept) : result.sentences;
 
-  const counts = result.sentences.reduce(
-    (acc, s) => {
-      acc[s.kind] += 1;
-      return acc;
-    },
-    { relevant: 0, redundant: 0, irrelevant: 0 } as Record<string, number>,
-  );
+  const count = (kind: string) => result.sentences.filter((s) => s.kind === kind).length;
 
   return (
     <section className="glass-card rounded-2xl p-6">
