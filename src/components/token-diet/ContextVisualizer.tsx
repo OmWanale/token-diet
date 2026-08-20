@@ -88,7 +88,7 @@ export function ContextVisualizer({ result }: { result: Result }) {
       <p className="mt-4 font-mono text-xs text-muted-foreground">
         {mode === "compressed"
           ? `${result.keptCount} of ${result.sentences.length} sentences retained • lowest-scoring spans removed`
-          : `${result.sentences.length} sentences retrieved • ${counts.relevant} relevant • ${counts.redundant} redundant • ${counts.irrelevant} irrelevant`}
+          : `${result.sentences.length} sentences retrieved • ${count("relevant")} relevant • ${count("redundant")} redundant • ${count("irrelevant")} irrelevant`}
       </p>
     </section>
   );
