@@ -1,11 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ArrowRight, Cpu, Database, Gauge, Play, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CompressionLab } from "@/components/token-diet/CompressionLab";
 import { ContextVisualizer } from "@/components/token-diet/ContextVisualizer";
-import { ANSWER, computeMetrics, format, ORIGINAL_TOKENS } from "@/lib/token-diet";
+import {
+  analyze,
+  format,
+  matchTopic,
+  NO_MATCH_ANSWER,
+  NO_MATCH_HINT,
+  ORIGINAL_TOKENS,
+  TOPICS,
+  type Topic,
+} from "@/lib/token-diet";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -27,7 +36,14 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-const DEMO = computeMetrics(70);
+const SUGGESTIONS = [
+  "What are the eligibility requirements for GATE?",
+  "What is RAG?",
+  "What is cloud computing?",
+  "Explain computer networks",
+  "What is a database management system?",
+  "What is artificial intelligence?",
+];
 
 function Metric({
   label,
@@ -75,18 +91,29 @@ function PipelineStep({ icon, label, value }: { icon: React.ReactNode; label: st
 
 function Dashboard() {
   const [query, setQuery] = useState("What are the eligibility requirements for GATE?");
-  const [ran, setRan] = useState(false);
+  const [ranQuery, setRanQuery] = useState<string | null>(null);
+  const [topic, setTopic] = useState<Topic | null>(null);
   const [running, setRunning] = useState(false);
   const [level, setLevel] = useState(70);
 
   const run = () => {
+    const q = query;
     setRunning(true);
-    setRan(false);
+    setRanQuery(null);
     window.setTimeout(() => {
+      const match = matchTopic(q);
+      setTopic(match ? match.topic : null);
+      setRanQuery(q);
       setRunning(false);
-      setRan(true);
     }, 700);
   };
+
+  const result = useMemo(
+    () => (topic && ranQuery ? analyze(ranQuery, topic, level) : null),
+    [topic, ranQuery, level],
+  );
+
+  const ran = ranQuery !== null;
 
   return (
     <main className="min-h-screen grid-bg">
@@ -108,7 +135,7 @@ function Dashboard() {
             <ArrowRight className="h-4 w-4 text-muted-foreground" />
             <PipelineStep icon={<Zap className="h-4 w-4" />} label="Token-Diet" value="Compression" />
             <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            <PipelineStep icon={<Gauge className="h-4 w-4" />} label="Compressed" value="3,000 tokens" />
+            <PipelineStep icon={<Gauge className="h-4 w-4" />} label="Compressed" value={`${format(result?.compressed ?? 3000)} tokens`} />
             <ArrowRight className="h-4 w-4 text-muted-foreground" />
             <PipelineStep icon={<Cpu className="h-4 w-4" />} label="Sent to" value="LLM" />
           </div>
@@ -129,9 +156,20 @@ function Dashboard() {
             rows={2}
             className="mt-2 resize-none border-border bg-background/60 font-mono text-base"
           />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                onClick={() => setQuery(s)}
+                className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              Runs against a local mock corpus — no external API calls.
+              Local mock corpus · {TOPICS.length} demo topics · no external API calls.
             </p>
             <Button size="lg" onClick={run} disabled={running} className="gap-2 font-semibold">
               <Play className={cn("h-4 w-4", running && "animate-pulse")} />
@@ -146,8 +184,29 @@ function Dashboard() {
           </p>
         )}
 
-        {ran && (
+        {ran && !result && (
+          <section className="glass-card mt-10 rounded-2xl border border-tdamber/40 p-6 text-center duration-500 animate-in fade-in">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+              Query
+            </p>
+            <p className="mt-1 font-display text-lg font-semibold">{ranQuery}</p>
+            <p className="mt-4 text-tdamber">{NO_MATCH_ANSWER}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{NO_MATCH_HINT}</p>
+          </section>
+        )}
+
+        {ran && result && (
           <div className="mt-10 space-y-10 duration-500 animate-in fade-in slide-in-from-bottom-4">
+            <div className="glass-card rounded-2xl p-5 text-center">
+              <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                Answering
+              </p>
+              <p className="mt-1 font-display text-lg font-semibold">{ranQuery}</p>
+              <p className="mt-1 font-mono text-xs text-primary">
+                matched topic · {result.topic.title}
+              </p>
+            </div>
+
             {/* Comparison */}
             <section className="grid gap-6 lg:grid-cols-2">
               <div className="glass-card rounded-2xl p-6">
@@ -167,7 +226,7 @@ function Dashboard() {
                   <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                     Answer
                   </p>
-                  <p className="mt-2 text-sm leading-relaxed">{ANSWER}</p>
+                  <p className="mt-2 text-sm leading-relaxed">{result.topic.normalAnswer}</p>
                 </div>
               </div>
 
@@ -182,17 +241,21 @@ function Dashboard() {
                 </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   <Metric label="Retrieved Context" value={`${format(ORIGINAL_TOKENS)} tokens`} />
-                  <Metric label="Compressed Context" value="3,000" tone="primary" />
-                  <Metric label="Tokens Saved" value="7,000" tone="primary" />
-                  <Metric label="Compression" value="70%" tone="primary" />
-                  <Metric label="TTFT" value="2,100 ms" tone="primary" />
-                  <Metric label="Tokens sent to LLM" value="3,000" tone="primary" />
+                  <Metric label="Compressed Context" value={format(result.compressed)} tone="primary" />
+                  <Metric label="Tokens Removed" value={format(result.saved)} tone="primary" />
+                  <Metric label="Compression" value={`${result.ratio}%`} tone="primary" />
+                  <Metric label="TTFT" value={`${format(result.ttft)} ms`} tone="primary" />
+                  <Metric
+                    label="Sentences kept"
+                    value={`${result.keptCount} / ${result.sentences.length}`}
+                    tone="primary"
+                  />
                 </div>
                 <div className="mt-5 rounded-xl border border-primary/25 bg-primary/5 p-4">
                   <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                     Answer
                   </p>
-                  <p className="mt-2 text-sm leading-relaxed">{ANSWER}</p>
+                  <p className="mt-2 text-sm leading-relaxed">{result.answer}</p>
                 </div>
               </div>
             </section>
@@ -205,39 +268,48 @@ function Dashboard() {
             <section className="glass-card rounded-2xl p-6">
               <h2 className="font-display text-xl font-semibold">Answer Comparison</h2>
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                {["Normal RAG", "Token-Diet RAG"].map((t, i) => (
-                  <div
-                    key={t}
-                    className={cn(
-                      "rounded-xl border p-4",
-                      i === 0 ? "border-border bg-background/40" : "border-primary/30 bg-primary/5",
-                    )}
-                  >
-                    <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                      {t}
-                    </p>
-                    <p className="mt-2 text-sm leading-relaxed">{ANSWER}</p>
-                  </div>
-                ))}
+                <div className="rounded-xl border border-border bg-background/40 p-4">
+                  <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Normal RAG
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed">{result.topic.normalAnswer}</p>
+                </div>
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                  <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Token-Diet RAG
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed">{result.answer}</p>
+                </div>
               </div>
 
               <div className="mt-6 space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Similarity</span>
-                  <span className="font-display font-semibold text-primary tabular-nums">96%</span>
+                  <span className="font-display font-semibold text-primary tabular-nums">
+                    {result.similarity}%
+                  </span>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
                   <div
                     className="h-full rounded-full transition-all duration-700"
-                    style={{ width: "96%", background: "var(--gradient-primary)" }}
+                    style={{ width: `${result.similarity}%`, background: "var(--gradient-primary)" }}
                   />
                 </div>
                 <div className="flex flex-wrap gap-2 pt-1">
                   <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs text-primary">
-                    Information preserved: High
+                    Information preserved: {result.preserved}
                   </span>
-                  <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs text-primary">
-                    Important information retained
+                  <span
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs",
+                      result.degraded
+                        ? "border-tdamber/40 bg-tdamber/10 text-tdamber"
+                        : "border-primary/35 bg-primary/10 text-primary",
+                    )}
+                  >
+                    {result.degraded
+                      ? "Some supporting evidence dropped"
+                      : "Important information retained"}
                   </span>
                   <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
                     Demo values
@@ -246,16 +318,21 @@ function Dashboard() {
               </div>
             </section>
 
-            <CompressionLab level={level} onLevel={setLevel} />
-            <ContextVisualizer />
+            <CompressionLab level={level} onLevel={setLevel} result={result} />
+            <ContextVisualizer key={result.topic.id} result={result} />
 
             {/* Performance summary */}
             <section className="glass-card rounded-2xl p-6">
               <h2 className="font-display text-xl font-semibold">Performance Summary</h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <Metric label="Normal RAG TTFT" value="4,800 ms" tone="bad" />
-                <Metric label="Token-Diet TTFT" value={`${format(DEMO.ttft)} ms`} tone="primary" />
-                <Metric label="Latency Drop" value="2,700 ms" tone="primary" sub="at 70% compression" />
+                <Metric label="Token-Diet TTFT" value={`${format(result.ttft)} ms`} tone="primary" />
+                <Metric
+                  label="Latency Drop"
+                  value={`${format(4800 - result.ttft)} ms`}
+                  tone="primary"
+                  sub={`at ${result.ratio}% compression`}
+                />
               </div>
               <p className="mt-4 font-mono text-xs text-muted-foreground">
                 Prototype simulation values · mock retrieval corpus · no LLM was called.
